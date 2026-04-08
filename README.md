@@ -114,7 +114,7 @@ gol-py/
 │       ├── engine.py           # Base class with unified simulate loop
 │       ├── sequential.py       # Pure Python loops
 │       ├── vectorized.py       # NumPy vectorized
-│       ├── parallel.py         # ProcessPoolExecutor row decomposition
+│       ├── parallel.py         # ThreadPoolExecutor row decomposition
 │       └── gpu.py              # PyOpenCL backend
 ├── patterns/                   # Bundled RLE pattern files
 ├── benchmark.csv               # Latest benchmark results
