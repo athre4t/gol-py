@@ -66,23 +66,34 @@ python gol/cli.py --benchmark 10000 patterns/pp8primecalculator.rle -o results.c
 
 ## Benchmark
 
-Measured on **AMD Phoenix3** (16-core CPU, OpenCL via Mesa rusticl),
-pattern: `pp8primecalculator` (~2.5 M cells), **1 000 steps**.
+Measured on **AMD Phoenix3** (16-core CPU, OpenCL via Mesa rusticl).
 
-| Method | ExecutionTime (ms) | Avg ms/step | LiveCells | LiveCell % | Threads |
-|---------------------------|------------------:|------------:|----------:|-----------:|--------:|
-| Pure Python (Sparse) | 74 843.3 | 74.84 | 12 032 | 0.476 % | 1 |
-| NumPy (Vectorized) | 4 199.5 | 4.20 | 12 032 | 0.476 % | 1 |
-| Parallel (Multiprocessing) | 1 840.5 | 1.84 | 12 032 | 0.476 % | 16 |
-| GPU (OpenCL) | 333.9 | 0.33 | 12 032 | 0.476 % | — |
+### otcametapixel (4116×4116, ~16.9 M cells), 100 steps
 
-**Speedup over pure Python baseline:**
+| Method | ExecutionTime (ms) | Avg ms/step | Speedup |
+|---------------------------|------------------:|------------:|--------:|
+| Pure Python (Sparse) | 63 303 | 633.03 | 1x |
+| NumPy (Vectorized) | 2 158 | 21.58 | ~29x |
+| Parallel (Multiprocessing) | 1 286 | 12.85 | ~49x |
+| GPU (OpenCL) | 207 | 2.07 | ~306x |
 
-| Method | Speedup |
-|---------------------------|--------:|
-| NumPy (Vectorized) | ~18x |
-| Parallel (Multiprocessing) | ~41x |
-| GPU (OpenCL) | ~224x |
+### pp8primecalculator (2044×1236, ~2.5 M cells), 1 000 steps
+
+| Method | ExecutionTime (ms) | Avg ms/step | Speedup |
+|---------------------------|------------------:|------------:|--------:|
+| Pure Python (Sparse) | 74 843 | 74.84 | 1x |
+| NumPy (Vectorized) | 4 200 | 4.20 | ~18x |
+| Parallel (Multiprocessing) | 1 841 | 1.84 | ~41x |
+| GPU (OpenCL) | 334 | 0.33 | ~224x |
+
+### breeder1 (1498×676, ~1 M cells), 1 000 steps
+
+| Method | ExecutionTime (ms) | Avg ms/step | Speedup |
+|---------------------------|------------------:|------------:|--------:|
+| Pure Python (Sparse) | 30 310 | 30.31 | 1x |
+| NumPy (Vectorized) | 616 | 0.62 | ~49x |
+| Parallel (Multiprocessing) | 539 | 0.54 | ~56x |
+| GPU (OpenCL) | 141 | 0.14 | ~215x |
 
 ---
 
@@ -95,10 +106,11 @@ Built-in RLE patterns included in `patterns/`:
 | `glider.rle` | Classic 5-cell glider |
 | `gosper_glider_gun.rle` | Infinite glider factory |
 | `pulsar.rle` | Period-3 oscillator |
-| `caterpillar.rle` | Large, fast spaceship |
 | `diehard2500.rle` | Pattern that survives exactly 2500 generations |
 | `rpentominoequivalents.rle` | R-pentomino variant |
-| `pp8primecalculator.rle` | Large prime-sieve pattern (~2.5 M cells) |
+| `breeder1.rle` | Quadratic growth breeder (749×338, grid 1498×676) |
+| `pp8primecalculator.rle` | Large prime-sieve pattern (1022×618, grid 2044×1236) |
+| `otcametapixel.rle` | OTCA metapixel (2058×2058, grid 4116×4116) |
 
 ---
 

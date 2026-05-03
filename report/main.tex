@@ -205,8 +205,10 @@ __kernel void gameOfLifeStep(
 CPU         & AMD Phoenix3 APU, 16 logických jader \\
 GPU         & Integrovaná GPU (Mesa rusticl, OpenCL 3.0) \\
 Patterny    & diehard2500 (100$\times$100), rpentominoequivalents (392$\times$214), \\
-            & pp8primecalculator (2044$\times$1236, $\approx$2.5M buněk) \\
-Kroky       & 1000 \\
+            & breeder1 (1498$\times$676, $\approx$1M buněk), \\
+            & pp8primecalculator (2044$\times$1236, $\approx$2.5M buněk), \\
+            & otcametapixel (4116$\times$4116, $\approx$16.9M buněk) \\
+Kroky       & 1000 (100 pro otcametapixel) \\
 Měření      & Opakované 3$\times$, prezentovány průměrné hodnoty \\
 OS          & Linux (kernel 6.x) \\
 Python      & 3.11+ \\
@@ -241,14 +243,8 @@ Parallel (Multiprocessing, 16p) &   396.3  & 0.40 & $4.7\times$ \\
 GPU (OpenCL)                    &    31.3  & 0.03 & $60.0\times$ \\
 \bottomrule
 \end{tabular}
-\caption{diehard2500 --- 1000 kroků, 100$\times$100 mřížka}
+\caption{diehard2500 --- 1000 kroků, 100$\times$100 mřížka (demonstrace režie paralelizace)}
 \end{table}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{exec_time_log_diehard2500.png}
-\caption{Doba výpočtu --- diehard2500 (logaritmické měřítko)}
-\end{figure}
 
 \subsubsection{Střední pattern: rpentominoequivalents (392$\times$214)}
 
@@ -267,11 +263,22 @@ GPU (OpenCL)                    &    48.8  & 0.05 & $112.7\times$ \\
 \caption{rpentominoequivalents --- 1000 kroků, 392$\times$214 mřížka}
 \end{table}
 
-\begin{figure}[H]
+\subsubsection{Velký pattern: breeder1 (1498$\times$676)}
+
+\begin{table}[H]
 \centering
-\includegraphics[width=0.85\textwidth]{exec_time_log_rpentominoequivalents.png}
-\caption{Doba výpočtu --- rpentominoequivalents (logaritmické měřítko)}
-\end{figure}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Metoda} & \textbf{Čas (ms)} & \textbf{Avg (ms/krok)} & \textbf{Zrychlení} \\
+\midrule
+Pure Python (Sparse)            & 30\,310  & 30.31 & $1.0\times$ \\
+NumPy (Vectorized)              &    616   &  0.62 & $49.2\times$ \\
+Parallel (Multiprocessing, 16p) &    539   &  0.54 & $56.2\times$ \\
+GPU (OpenCL)                    &    141   &  0.14 & $214.8\times$ \\
+\bottomrule
+\end{tabular}
+\caption{breeder1 --- 1000 kroků, $\approx$1M buněk}
+\end{table}
 
 \subsubsection{Velký pattern: pp8primecalculator (2044$\times$1236)}
 
@@ -281,28 +288,31 @@ GPU (OpenCL)                    &    48.8  & 0.05 & $112.7\times$ \\
 \toprule
 \textbf{Metoda} & \textbf{Čas (ms)} & \textbf{Avg (ms/krok)} & \textbf{Zrychlení} \\
 \midrule
-Pure Python (Sparse)            & 74\,843.3 & 74.84 & $1.0\times$ \\
-NumPy (Vectorized)              &  4\,199.5 &  4.20  & $17.8\times$ \\
-Parallel (Multiprocessing, 16p) &  1\,840.5 &  1.84  & $40.7\times$ \\
-GPU (OpenCL)                    &    333.9  &  0.33  & $224.1\times$ \\
+Pure Python (Sparse)            & 74\,843  & 74.84 & $1.0\times$ \\
+NumPy (Vectorized)              &  4\,199  &  4.20 & $17.8\times$ \\
+Parallel (Multiprocessing, 16p) &  1\,841  &  1.84 & $40.7\times$ \\
+GPU (OpenCL)                    &    334   &  0.33 & $224.1\times$ \\
 \bottomrule
 \end{tabular}
 \caption{pp8primecalculator --- 1000 kroků, $\approx$2.5M buněk}
 \end{table}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{exec_time_log_pp8primecalculator.png}
-\caption{Doba výpočtu --- pp8primecalculator (logaritmické měřítko)}
-\end{figure}
+\subsubsection{Extra-velký pattern: otcametapixel (4116$\times$4116)}
 
-\begin{figure}[H]
+\begin{table}[H]
 \centering
-\includegraphics[width=0.85\textwidth]{speedup.png}
-\caption{Zrychlení oproti sekvenční implementaci --- pp8primecalculator}
-\end{figure}
-
-\subsubsection{Porovnání napříč patterny}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Metoda} & \textbf{Čas (ms)} & \textbf{Avg (ms/krok)} & \textbf{Zrychlení} \\
+\midrule
+Pure Python (Sparse)            & 63\,303  & 633.03 & $1.0\times$ \\
+NumPy (Vectorized)              &  2\,158  &  21.58 & $29.3\times$ \\
+Parallel (Multiprocessing, 16p) &  1\,286  &  12.85 & $49.2\times$ \\
+GPU (OpenCL)                    &    207   &   2.07 & $305.5\times$ \\
+\bottomrule
+\end{tabular}
+\caption{otcametapixel --- 100 kroků, $\approx$16.9M buněk (4116$\times$4116)}
+\end{table}
 
 \begin{figure}[H]
 \centering
@@ -310,52 +320,62 @@ GPU (OpenCL)                    &    333.9  &  0.33  & $224.1\times$ \\
 \caption{Porovnání dob výpočtu napříč patterny (logaritmické měřítko)}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{speedup.png}
+\caption{Zrychlení oproti sekvenční implementaci --- velké patterny}
+\end{figure}
+
 \subsection{Vyhodnocení hypotéz}
 
-\paragraph{H1 --- potvrzena.} Vektorizace dosáhla $18{-}61\times$ zrychlení napříč patterny v~závislosti na velikosti mřížky, což převyšuje předpokládaných $10\times$. Na menších mřížkách (diehard2500) je poměr vyšší ($61\times$) díky nižší absolutní režii.
+\paragraph{H1 --- potvrzena.} Vektorizace dosáhla $17{-}61\times$ zrychlení napříč patterny v~závislosti na velikosti mřížky, což převyšuje předpokládaných $10\times$.
 
 \paragraph{H2 --- potvrzena.} Multiprocessing se sdílenou pamětí vykazuje závislost na velikosti mřížky, jak bylo očekáváno:
 \begin{itemize}
     \item \textbf{Malá mřížka} (100$\times$100): multiprocessing je $13\times$ \emph{pomalejší} než vectorized --- režie barrier synchronizace dominuje
     \item \textbf{Střední mřížka} (392$\times$214): stále $4.4\times$ pomalejší než vectorized
-    \item \textbf{Velká mřížka} (2044$\times$1236): $2.3\times$ \emph{rychlejší} než vectorized --- výpočetní práce per-worker dostatečně převáží režii
+    \item \textbf{Velká mřížka} (1498$\times$676): $1.1\times$ rychlejší --- přechod kde se paralelismus vyplatí
+    \item \textbf{Extra-velká mřížka} (4116$\times$4116): $1.7\times$ rychlejší než vectorized
 \end{itemize}
 
-\noindent Paralelní efektivita pro velkou mřížku (16 procesů):
+\noindent Paralelní efektivita pro extra-velkou mřížku (16 procesů):
 \[
-\eta = \frac{S_p}{T} = \frac{2.3}{16} \approx 14\%
+\eta = \frac{S_p}{T} = \frac{1.68}{16} \approx 10.5\%
 \]
-Nízká efektivita je způsobena per-step kopírováním mřížky do sdílené paměti a~barrier latencí.
+Nízká efektivita je způsobena per-step kopírováním mřížky do sdílené paměti a~barrier latencí. Pro mřížku pp8 (2044$\times$1236):
+\[
+\eta_{\text{pp8}} = \frac{2.28}{16} \approx 14.3\%
+\]
 
-\paragraph{H3 --- potvrzena.} GPU dosáhlo $224\times$ zrychlení oproti baseline na velkém patternu. GPU je konzistentně nejrychlejší napříč všemi velikostmi mřížek.
+\paragraph{H3 --- potvrzena.} GPU dosáhlo až $305\times$ zrychlení oproti baseline na extra-velkém patternu (16.9M buněk). GPU je konzistentně nejrychlejší napříč všemi velikostmi mřížek.
 
 \subsection{Analýza škálování}
 
 \begin{table}[H]
 \centering
-\begin{tabular}{@{}lrl@{}}
+\begin{tabular}{@{}lrrl@{}}
 \toprule
-\textbf{Přechod (pp8)} & \textbf{Faktor} & \textbf{Vysvětlení} \\
+\textbf{Přechod} & \textbf{pp8 (2.5M)} & \textbf{otcametapixel (16.9M)} & \textbf{Vysvětlení} \\
 \midrule
-Sequential $\to$ Vectorized & $17.8\times$  & Eliminace Python smyček; SIMD operace \\
-Vectorized $\to$ Parallel   & $2.3\times$ & Datová dekompozice; obejití GIL \\
-Parallel $\to$ GPU          & $5.5\times$ & SIMT paralelismus; žádný per-step sync \\
-Sequential $\to$ GPU        & $224\times$ & Celkové zrychlení \\
+Seq $\to$ Vec    & $17.8\times$ & $29.3\times$  & Eliminace Python smyček; SIMD \\
+Vec $\to$ Par    & $2.3\times$  & $1.7\times$   & Datová dekompozice; obejití GIL \\
+Par $\to$ GPU    & $5.5\times$  & $6.2\times$   & SIMT paralelismus \\
+Seq $\to$ GPU    & $224\times$  & $305\times$   & Celkové zrychlení \\
 \bottomrule
 \end{tabular}
-\caption{Analýza škálování --- pp8primecalculator}
+\caption{Analýza škálování --- velké patterny}
 \end{table}
 
 %=============================================================================
 \section{Závěr}
 
-Práce demonstrovala progresivní paralelizaci 2D stencilového výpočtu (Conwayova Game of Life) pomocí čtyř přístupů s~rostoucí úrovní paralelismu.
+Práce demonstrovala progresivní paralelizaci 2D stencilového výpočtu (Conwayova Game of Life) pomocí čtyř přístupů s~rostoucí úrovní paralelismu. Experimenty byly provedeny na mřížkách s~rozměry od $100{\times}100$ do $4116{\times}4116$ (16.9M buněk).
 
 \paragraph{Hlavní zjištění:}
 \begin{enumerate}
-    \item Samotná vektorizace (NumPy) přináší $18\times$ zrychlení na velké mřížce eliminací režie interpretru --- jedná se o~nejjednodušší cestu k~výraznému zrychlení na CPU.
-    \item Multiprocessing se sdílenou pamětí přidává další $2.3\times$ na velkých mřížkách, ale je kontraproduktivní pro malé vstupy kde režie synchronizace dominuje.
-    \item GPU (OpenCL) dosahuje $224\times$ zrychlení oproti baseline a~je jasným vítězem pro velké mřížky.
+    \item Samotná vektorizace (NumPy) přináší $18{-}49\times$ zrychlení na velkých mřížkách eliminací režie interpretru --- jedná se o~nejjednodušší cestu k~výraznému zrychlení na CPU.
+    \item Multiprocessing se sdílenou pamětí přidává další $1.1{-}2.3\times$ na mřížkách s~rozměry v~řádu tisíců, ale je kontraproduktivní pro malé vstupy kde režie synchronizace dominuje.
+    \item GPU (OpenCL) dosahuje až $305\times$ zrychlení oproti baseline na extra-velké mřížce ($4116{\times}4116$) a~je jasným vítězem pro velké mřížky.
 \end{enumerate}
 
 \paragraph{Future work:}

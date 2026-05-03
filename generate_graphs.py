@@ -30,12 +30,13 @@ for pat in patterns:
     sub = df[df["PatternName"] == pat].copy()
     methods = sub["Method"].tolist()
     times = sub["ExecutionTime(ms)"].tolist()
+    steps = int(sub["Steps"].iloc[0])
     colors = [colors_map.get(m, "#666") for m in methods]
 
     fig, ax = plt.subplots(figsize=(8, 3.5))
     bars = ax.barh(methods, times, color=colors)
     ax.set_xlabel("Execution Time (ms, log scale)")
-    ax.set_title(f"Execution Time — {pat}, 1000 steps")
+    ax.set_title(f"Execution Time — {pat}, {steps} steps")
     ax.set_xscale("log")
     ax.invert_yaxis()
     for bar, t in zip(bars, times):
@@ -50,17 +51,17 @@ for pat in patterns:
     fig.savefig(os.path.join(OUT_DIR, f"exec_time_log_{pat}.png"), dpi=200)
     plt.close(fig)
 
-# --- 2. Speedup chart for pp8primecalculator (largest) ---
-pp8 = df[df["PatternName"] == "pp8primecalculator"].copy()
-baseline = pp8["ExecutionTime(ms)"].iloc[0]
-methods_sp = pp8["Method"].tolist()
-speedups = [baseline / t for t in pp8["ExecutionTime(ms)"].tolist()]
+# --- 2. Speedup chart for otcametapixel (largest) ---
+largest = df[df["PatternName"] == "otcametapixel"].copy()
+baseline = largest["ExecutionTime(ms)"].iloc[0]
+methods_sp = largest["Method"].tolist()
+speedups = [baseline / t for t in largest["ExecutionTime(ms)"].tolist()]
 colors_sp = [colors_map.get(m, "#999") for m in methods_sp]
 
 fig, ax = plt.subplots(figsize=(8, 3.5))
 bars = ax.barh(methods_sp, speedups, color=colors_sp)
 ax.set_xlabel("Speedup (x)")
-ax.set_title("Speedup vs Pure Python — pp8primecalculator, 1000 steps")
+ax.set_title("Speedup vs Pure Python — otcametapixel (4116×4116), 100 steps")
 ax.invert_yaxis()
 for bar, s in zip(bars, speedups):
     w = bar.get_width()
@@ -93,7 +94,7 @@ for i, method in enumerate(method_list):
 
 ax.set_yscale("log")
 ax.set_ylabel("Execution Time (ms, log scale)")
-ax.set_title("Comparison Across Patterns — 1000 steps")
+ax.set_title("Comparison Across Patterns")
 ax.set_xticks(x + width * 1.5)
 ax.set_xticklabels(patterns, fontsize=9)
 ax.legend(fontsize=8, loc="upper left")

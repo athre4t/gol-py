@@ -3,8 +3,6 @@ import os
 
 from grid import Grid
 
-MAX_DIMENSION = 10000
-
 
 def parse_rle(path: str) -> Grid:
     """Parse an RLE file and return a centered Grid."""
@@ -34,17 +32,13 @@ def parse_rle(path: str) -> Grid:
     if width <= 0 or height <= 0:
         raise ValueError('Invalid pattern dimensions')
 
-    if width > MAX_DIMENSION or height > MAX_DIMENSION:
-        width = min(width, MAX_DIMENSION)
-        height = min(height, MAX_DIMENSION)
-
     # Build the compact RLE string
     rle_str = ''.join(body_lines)
     # Remove any 'rule=' parts if present
     rle_str = re.sub(r'\s*rule\s*=\s*[^,;]*', '', rle_str)
 
-    padded_w = min(max(width * 2, 100), MAX_DIMENSION)
-    padded_h = min(max(height * 2, 100), MAX_DIMENSION)
+    padded_w = max(width * 2, 100)
+    padded_h = max(height * 2, 100)
 
     grid = Grid(padded_w, padded_h)
 

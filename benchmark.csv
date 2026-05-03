@@ -7,7 +7,15 @@ Pure Python (Sparse),rpentominoequivalents,5493.93,867,83021,1.0335,0,1000
 NumPy (Vectorized),rpentominoequivalents,91.6633,867,83021,1.0335,0,1000
 Parallel (Multiprocessing),rpentominoequivalents,400.7067,867,83021,1.0335,16,1000
 GPU (OpenCL),rpentominoequivalents,48.7567,867,83021,1.0335,0,1000
+Pure Python (Sparse),breeder1,30309.6,5169,1007479,0.5104,0,1000
+NumPy (Vectorized),breeder1,615.71,5169,1007479,0.5104,0,1000
+Parallel (Multiprocessing),breeder1,539.03,5169,1007479,0.5104,16,1000
+GPU (OpenCL),breeder1,141.1,5169,1007479,0.5104,0,1000
 Pure Python (Sparse),pp8primecalculator,74843.3,12032,2514352,0.4763,0,1000
 NumPy (Vectorized),pp8primecalculator,4199.48,12032,2514352,0.4763,0,1000
 Parallel (Multiprocessing),pp8primecalculator,1840.4733,12032,2514352,0.4763,16,1000
 GPU (OpenCL),pp8primecalculator,333.9167,12032,2514352,0.4763,0,1000
+Pure Python (Sparse),otcametapixel,63303.17,64619,16876837,0.3814,0,100
+NumPy (Vectorized),otcametapixel,2158.29,64619,16876837,0.3814,0,100
+Parallel (Multiprocessing),otcametapixel,1285.49,64619,16876837,0.3814,16,100
+GPU (OpenCL),otcametapixel,207.19,64619,16876837,0.3814,0,100
