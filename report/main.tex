@@ -1,0 +1,416 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[czech,english]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{caption}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=blue!60!black,
+    urlcolor=blue!60!black
+}
+
+\lstset{
+    language=C,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue!70!black}\bfseries,
+    commentstyle=\color{green!50!black}\itshape,
+    stringstyle=\color{red!60!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    breaklines=true,
+    tabsize=4,
+    showstringspaces=false
+}
+
+\title{\textbf{Paralelní implementace Conwayovy Hry života}}
+\author{Denis Zuev \\ \small ZUE0008}
+\date{2026 \\ \small Seminární práce --- PDS}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{Úvod do problému}
+
+Conwayova Hra života (Game of Life)~\cite{gardner1970} je dvourozměrný celulární automat definovaný na mřížce $G \in \{0,1\}^{H \times W}$. Každá buňka má 8~sousedů (Mooreovo okolí) a v~každém kroku se aplikují pravidla:
+
+\begin{itemize}
+    \item \textbf{Přežití:} živá buňka s~2 nebo 3 živými sousedy zůstává živá.
+    \item \textbf{Zrození:} mrtvá buňka s~přesně 3 živými sousedy se stává živou.
+    \item \textbf{Smrt:} ve všech ostatních případech buňka umírá.
+\end{itemize}
+
+Z~výpočetního hlediska se jedná o~\textbf{2D stencilový výpočet} --- operaci, kde nový stav každé buňky závisí pouze na jejím okolí. Tato vlastnost činí problém \emph{embarrassingly parallel} --- nezávislé buňky mohou být vyhodnocovány souběžně bez synchronizace~\cite{mattson2004}.
+
+Cílem práce je implementovat a experimentálně porovnat čtyři přístupy k~výpočtu: sekvenční (čistý Python), vektorizovaný (NumPy), multiprocessing se sdílenou pamětí a~GPU (OpenCL), a~kvantifikovat dosažené zrychlení.
+
+\subsection{Volba jazyka: Python a problém GIL}
+
+Implementace je v~jazyce \textbf{Python} (CPython 3.11+). Python je interpretovaný jazyk s~dynamickým typováním, jehož hlavní nevýhodou pro paralelní výpočty je \textbf{Global Interpreter Lock (GIL)}~\cite{beazley2010} --- mutex, který zajišťuje, že v~daném okamžiku vykonává Python bytecode pouze jedno vlákno. To znamená, že:
+
+\begin{itemize}
+    \item \texttt{threading.Thread} a \texttt{ThreadPoolExecutor} \textbf{neposkytují skutečný CPU paralelismus} pro Python kód --- vlákna jsou přepínána kooperativně, nikdy neběží současně.
+    \item GIL je dočasně uvolněn během volání C-extension funkcí (např.\ NumPy operace), což umožňuje \emph{omezenou} paralelizaci při vektorizovaném výpočtu.
+    \item Pro skutečný CPU paralelismus v~Pythonu je nutné použít \textbf{procesy} (\texttt{multiprocessing}), kde každý proces má vlastní GIL a vlastní kopii interpretru.
+\end{itemize}
+
+Z~tohoto důvodu byla paralelní implementace v~této práci realizována pomocí \texttt{multiprocessing} se sdílenou pamětí (\texttt{shared\_memory}), nikoli pomocí vláken. Sdílená paměť eliminuje nutnost serializace (pickle) velkých NumPy polí mezi procesy.
+
+%=============================================================================
+\section{State of the Art}
+
+Paralelizace celulárních automatů je dobře prostudovaná oblast. Obvyklé přístupy zahrnují:
+
+\paragraph{Dekompozice domény.} Mřížka se rozdělí na bloky (řádkové, sloupcové nebo 2D), každý blok je přiřazen jednomu výpočetnímu vláknu/procesu. Při hranicích bloků je nutná výměna \emph{ghost cells} (překryvových řádků)~\cite{quinn2003}.
+
+\paragraph{SIMD vektorizace.} Knihovny jako NumPy provádějí aritmetické operace na celých polích pomocí SIMD instrukcí (AVX2/SSE), čímž eliminují režii interpretru Pythonu~\cite{harris2020}.
+
+\paragraph{GPU výpočty.} Každá buňka je mapována na jeden work-item. Frameworky: CUDA~\cite{nickolls2008}, OpenCL~\cite{stone2010}, Vulkan Compute. Pro Game of Life je výpočet paměťově omezený (memory-bound) --- ALU je nevytížené, limitujícím faktorem je propustnost paměti.
+
+\paragraph{HashLife.} Algoritmicky odlišný přístup, založený na memoizaci quadtree podpatternů. Dosahuje exponenciálního zrychlení pro regulární patterny, ale má vysokou paměťovou náročnost~\cite{gosper1984}.
+
+Tato práce implementuje první tři přístupy (vektorizace, multiprocessing, GPU) a porovnává je se sekvenční implementací.
+
+%=============================================================================
+\section{Popis implementovaných algoritmů}
+
+\subsection{Sekvenční implementace (Sparse-Set)}
+
+Sekvenční implementace pracuje s~množinou živých buněk místo iterace přes celou mřížku:
+
+\begin{enumerate}
+    \item Extrahovat souřadnice živých buněk: $L = \{(r,c) \mid G[r,c] = 1\}$
+    \item Sestrojit množinu kandidátů: $C = \bigcup_{(r,c) \in L} N(r,c) \cup \{(r,c)\}$, kde $N(r,c)$ je Mooreovo okolí
+    \item Pro každého kandidáta $(r,c) \in C$ spočítat $n = |\{(r',c') \in N(r,c) \cap L\}|$
+    \item Aplikovat pravidla: nová živá buňka pokud $n=3$, nebo $n=2$ a $(r,c) \in L$
+\end{enumerate}
+
+\noindent\textbf{Složitost:} $O(|L| \cdot 9)$ na krok. Efektivní pro řídké patterny ($|L| \ll H \cdot W$).
+
+\subsection{Vektorizovaná implementace (NumPy)}
+
+Využívá operace nad celými poli --- žádná Python smyčka:
+
+\begin{enumerate}
+    \item Převést mřížku na \texttt{int8} pole $P$
+    \item Vytvořit padded verzi: $P' = \mathrm{pad}(P, 1, \text{mode=constant})$
+    \item Spočítat sousedy jako součet 8 posunutých řezů:
+    \[
+        N[i,j] = \sum_{\substack{(dr,dc) \in \{-1,0,1\}^2 \\ (dr,dc) \neq (0,0)}} P'[i{+}dr{+}1,\; j{+}dc{+}1]
+    \]
+    \item Aplikovat pravidla vektorově:
+    \[
+        G_{\text{next}} = (N = 3) \lor (G_{\text{curr}} \land N = 2)
+    \]
+\end{enumerate}
+
+\noindent\textbf{Složitost:} $O(H \times W)$ na krok, ale s~konstantním faktorem řádově $100\times$ menším díky SIMD.
+
+\subsection{Paralelní implementace (Multiprocessing + Shared Memory)}
+
+Rozšiřuje vektorizovaný přístup o~datovou dekompozici po řádcích s~použitím procesů místo vláken, čímž zcela obchází Python GIL:
+
+\begin{enumerate}
+    \item Alokovat sdílenou paměť (\texttt{multiprocessing.shared\_memory}) pro padded vstup a~výstupní mřížku
+    \item Spustit $T$ perzistentních workerů (kde $T$ = \texttt{os.cpu\_count()})
+    \item V~každém kroku:
+    \begin{enumerate}
+        \item Hlavní proces zapíše aktuální mřížku do sdílené paměti
+        \item \texttt{Barrier.wait()} uvolní workery
+        \item Každý worker provede vektorizovaný výpočet na svém řádkovém bloku a~zapíše výsledek přímo do sdílené výstupní paměti
+        \item Druhý \texttt{Barrier.wait()} signalizuje dokončení
+    \end{enumerate}
+    \item Hlavní proces zkopíruje výsledek ze sdílené paměti do gridu
+\end{enumerate}
+
+\noindent\textbf{Klíčové rozdíly oproti ThreadPoolExecutor:}
+\begin{itemize}
+    \item Procesy běží nezávisle --- žádný GIL
+    \item Sdílená paměť eliminuje serializaci (pickle) velkých polí
+    \item Perzistentní workery --- žádný per-step overhead na fork/spawn
+    \item \texttt{Barrier} synchronizace má minimální latenci
+\end{itemize}
+
+\noindent\textbf{Složitost:} $O\!\left(\frac{H \times W}{T}\right)$ na worker + režie na barrier synchronizaci a~kopii do sdílené paměti.
+
+\subsection{GPU implementace (OpenCL)}
+
+Každá buňka mřížky je mapována na jeden OpenCL work-item:
+
+\begin{enumerate}
+    \item Alokovat dva buffery (\texttt{src}, \texttt{dst}) velikosti $H \times W$ bytů na GPU
+    \item Nahrát počáteční stav do \texttt{src}
+    \item V~každém kroku spustit kernel s~global size $(\lceil W/16 \rceil \cdot 16,\; \lceil H/16 \rceil \cdot 16)$ a~work-group size $(16, 16)$
+    \item Kernel pro pozici $(x, y)$: spočítat sousedy čtením z~\texttt{src}, zapsat výsledek do \texttt{dst}
+    \item Prohodit \texttt{src} a \texttt{dst} (pointer swap, žádná kopie dat)
+    \item Host sync (\texttt{enqueue\_copy} zpět do RAM) pouze na konci simulace
+\end{enumerate}
+
+\noindent Úplný zdrojový kód kernelu:
+
+\begin{lstlisting}[caption={OpenCL kernel --- gameOfLife.cl}]
+__kernel void gameOfLifeStep(
+    __global const uchar* src,
+    __global uchar* dst,
+    const int width,
+    const int height)
+{
+    int x = get_global_id(0);
+    int y = get_global_id(1);
+    if (x >= width || y >= height) return;
+
+    int neighbors = 0;
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            if (dx == 0 && dy == 0) continue;
+            int nx = x + dx, ny = y + dy;
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                if (src[ny * width + nx] > 0) neighbors++;
+        }
+    }
+
+    int idx = y * width + x;
+    uchar alive = src[idx];
+    dst[idx] = (alive > 0) ? (neighbors == 2 || neighbors == 3)
+                           : (neighbors == 3);
+}
+\end{lstlisting}
+
+%=============================================================================
+\section{Experimenty a měření}
+
+\subsection{Podmínky měření}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parametr} & \textbf{Hodnota} \\
+\midrule
+CPU         & AMD Phoenix3 APU, 16 logických jader \\
+GPU         & Integrovaná GPU (Mesa rusticl, OpenCL 3.0) \\
+Patterny    & diehard2500 (100$\times$100), rpentominoequivalents (392$\times$214), \\
+            & pp8primecalculator (2044$\times$1236, $\approx$2.5M buněk) \\
+Kroky       & 1000 \\
+Měření      & Opakované 3$\times$, prezentovány průměrné hodnoty \\
+OS          & Linux (kernel 6.x) \\
+Python      & 3.11+ \\
+\bottomrule
+\end{tabular}
+\caption{Podmínky experimentu}
+\end{table}
+
+\subsection{Hypotézy}
+
+Před provedením experimentů formulujeme následující hypotézy:
+
+\begin{description}
+    \item[H1:] Vektorizace (NumPy) přinese zrychlení alespoň $10\times$ oproti čistému Pythonu díky eliminaci režie interpretru.
+    \item[H2:] Multiprocessing se sdílenou pamětí přinese zrychlení blízké $T/2$ oproti vektorizované verzi pro dostatečně velké mřížky, ale pro malé mřížky bude pomalejší kvůli režii.
+    \item[H3:] GPU implementace dosáhne nejvyššího zrychlení ($>100\times$) díky masivnímu SIMT paralelismu.
+\end{description}
+
+\subsection{Výsledky}
+
+\subsubsection{Malý pattern: diehard2500 (100$\times$100)}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Metoda} & \textbf{Čas (ms)} & \textbf{Avg (ms/krok)} & \textbf{Zrychlení} \\
+\midrule
+Pure Python (Sparse)            & 1\,876.7 & 1.88 & $1.0\times$ \\
+NumPy (Vectorized)              &    30.6  & 0.03 & $61.3\times$ \\
+Parallel (Multiprocessing, 16p) &   396.3  & 0.40 & $4.7\times$ \\
+GPU (OpenCL)                    &    31.3  & 0.03 & $60.0\times$ \\
+\bottomrule
+\end{tabular}
+\caption{diehard2500 --- 1000 kroků, 100$\times$100 mřížka}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{exec_time_log_diehard2500.png}
+\caption{Doba výpočtu --- diehard2500 (logaritmické měřítko)}
+\end{figure}
+
+\subsubsection{Střední pattern: rpentominoequivalents (392$\times$214)}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Metoda} & \textbf{Čas (ms)} & \textbf{Avg (ms/krok)} & \textbf{Zrychlení} \\
+\midrule
+Pure Python (Sparse)            & 5\,493.9 & 5.49 & $1.0\times$ \\
+NumPy (Vectorized)              &    91.7  & 0.09 & $59.9\times$ \\
+Parallel (Multiprocessing, 16p) &   400.7  & 0.40 & $13.7\times$ \\
+GPU (OpenCL)                    &    48.8  & 0.05 & $112.7\times$ \\
+\bottomrule
+\end{tabular}
+\caption{rpentominoequivalents --- 1000 kroků, 392$\times$214 mřížka}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{exec_time_log_rpentominoequivalents.png}
+\caption{Doba výpočtu --- rpentominoequivalents (logaritmické měřítko)}
+\end{figure}
+
+\subsubsection{Velký pattern: pp8primecalculator (2044$\times$1236)}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Metoda} & \textbf{Čas (ms)} & \textbf{Avg (ms/krok)} & \textbf{Zrychlení} \\
+\midrule
+Pure Python (Sparse)            & 74\,843.3 & 74.84 & $1.0\times$ \\
+NumPy (Vectorized)              &  4\,199.5 &  4.20  & $17.8\times$ \\
+Parallel (Multiprocessing, 16p) &  1\,840.5 &  1.84  & $40.7\times$ \\
+GPU (OpenCL)                    &    333.9  &  0.33  & $224.1\times$ \\
+\bottomrule
+\end{tabular}
+\caption{pp8primecalculator --- 1000 kroků, $\approx$2.5M buněk}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{exec_time_log_pp8primecalculator.png}
+\caption{Doba výpočtu --- pp8primecalculator (logaritmické měřítko)}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{speedup.png}
+\caption{Zrychlení oproti sekvenční implementaci --- pp8primecalculator}
+\end{figure}
+
+\subsubsection{Porovnání napříč patterny}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{multi_pattern.png}
+\caption{Porovnání dob výpočtu napříč patterny (logaritmické měřítko)}
+\end{figure}
+
+\subsection{Vyhodnocení hypotéz}
+
+\paragraph{H1 --- potvrzena.} Vektorizace dosáhla $18{-}61\times$ zrychlení napříč patterny v~závislosti na velikosti mřížky, což převyšuje předpokládaných $10\times$. Na menších mřížkách (diehard2500) je poměr vyšší ($61\times$) díky nižší absolutní režii.
+
+\paragraph{H2 --- potvrzena.} Multiprocessing se sdílenou pamětí vykazuje závislost na velikosti mřížky, jak bylo očekáváno:
+\begin{itemize}
+    \item \textbf{Malá mřížka} (100$\times$100): multiprocessing je $13\times$ \emph{pomalejší} než vectorized --- režie barrier synchronizace dominuje
+    \item \textbf{Střední mřížka} (392$\times$214): stále $4.4\times$ pomalejší než vectorized
+    \item \textbf{Velká mřížka} (2044$\times$1236): $2.3\times$ \emph{rychlejší} než vectorized --- výpočetní práce per-worker dostatečně převáží režii
+\end{itemize}
+
+\noindent Paralelní efektivita pro velkou mřížku (16 procesů):
+\[
+\eta = \frac{S_p}{T} = \frac{2.3}{16} \approx 14\%
+\]
+Nízká efektivita je způsobena per-step kopírováním mřížky do sdílené paměti a~barrier latencí.
+
+\paragraph{H3 --- potvrzena.} GPU dosáhlo $224\times$ zrychlení oproti baseline na velkém patternu. GPU je konzistentně nejrychlejší napříč všemi velikostmi mřížek.
+
+\subsection{Analýza škálování}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Přechod (pp8)} & \textbf{Faktor} & \textbf{Vysvětlení} \\
+\midrule
+Sequential $\to$ Vectorized & $17.8\times$  & Eliminace Python smyček; SIMD operace \\
+Vectorized $\to$ Parallel   & $2.3\times$ & Datová dekompozice; obejití GIL \\
+Parallel $\to$ GPU          & $5.5\times$ & SIMT paralelismus; žádný per-step sync \\
+Sequential $\to$ GPU        & $224\times$ & Celkové zrychlení \\
+\bottomrule
+\end{tabular}
+\caption{Analýza škálování --- pp8primecalculator}
+\end{table}
+
+%=============================================================================
+\section{Závěr}
+
+Práce demonstrovala progresivní paralelizaci 2D stencilového výpočtu (Conwayova Game of Life) pomocí čtyř přístupů s~rostoucí úrovní paralelismu.
+
+\paragraph{Hlavní zjištění:}
+\begin{enumerate}
+    \item Samotná vektorizace (NumPy) přináší $18\times$ zrychlení na velké mřížce eliminací režie interpretru --- jedná se o~nejjednodušší cestu k~výraznému zrychlení na CPU.
+    \item Multiprocessing se sdílenou pamětí přidává další $2.3\times$ na velkých mřížkách, ale je kontraproduktivní pro malé vstupy kde režie synchronizace dominuje.
+    \item GPU (OpenCL) dosahuje $224\times$ zrychlení oproti baseline a~je jasným vítězem pro velké mřížky.
+\end{enumerate}
+
+\paragraph{Future work:}
+\begin{itemize}
+    \item Porovnání s~HashLife algoritmem pro regulární patterny
+    \item Testování na diskrétní GPU (vyšší memory bandwidth)
+    \item Škálování: měření pro různé velikosti mřížek ($100{\times}100$ až $10000{\times}10000$)
+    \item Implementace pomocí CUDA pro srovnání s~OpenCL
+    \item Adaptivní volba backendu podle velikosti mřížky
+\end{itemize}
+
+%=============================================================================
+\begin{thebibliography}{9}
+
+\bibitem{gardner1970}
+Gardner, M.
+\textit{Mathematical Games --- The fantastic combinations of John Conway's new solitaire game ``life''}.
+Scientific American, 223(4):120--123, 1970.
+
+\bibitem{mattson2004}
+Mattson, T. et al.
+\textit{Patterns for Parallel Programming}.
+Addison-Wesley, 2004.
+
+\bibitem{quinn2003}
+Quinn, M.\,J.
+\textit{Parallel Programming in C with MPI and OpenMP}.
+McGraw-Hill, 2003.
+
+\bibitem{harris2020}
+Harris, C.\,R. et al.
+Array programming with NumPy.
+\textit{Nature}, 585:357--362, 2020.
+
+\bibitem{nickolls2008}
+Nickolls, J. et al.
+Scalable parallel programming with CUDA.
+\textit{ACM Queue}, 6(2):40--53, 2008.
+
+\bibitem{stone2010}
+Stone, J.\,E. et al.
+OpenCL: A parallel programming standard for heterogeneous computing systems.
+\textit{Computing in Science \& Engineering}, 12(3):66--73, 2010.
+
+\bibitem{gosper1984}
+Gosper, R.\,W.
+Exploiting regularities in large cellular spaces.
+\textit{Physica D}, 10(1--2):75--80, 1984.
+
+\bibitem{beazley2010}
+Beazley, D.
+Understanding the Python GIL.
+\textit{PyCon 2010}, Atlanta, GA, 2010.
+\url{https://dabeaz.com/python/UnderstandingGIL.pdf}
+
+\end{thebibliography}
+
+\end{document}

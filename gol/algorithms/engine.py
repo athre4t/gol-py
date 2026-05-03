@@ -30,7 +30,8 @@ class GameOfLifeEngine:
 
         self.sync_to_host(grid) # Final sync
         total_ms = (time.perf_counter() - start_time) * 1000.0
-        print(f"{self.name}: {steps} steps | Total: {total_ms:.2f}ms | Avg: {total_ms/steps:.4f}ms/step")
+        avg_ms = total_ms / steps if steps > 0 else 0.0
+        print(f"{self.name}: {steps} steps | Total: {total_ms:.2f}ms | Avg: {avg_ms:.4f}ms/step")
         return total_ms
 
     def sync_to_host(self, grid):

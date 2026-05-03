@@ -6,7 +6,7 @@ Python implementation of Conway's Game of Life with four execution backends:
 |------|-------------|
 | `sequential` | Pure Python sparse set — naive reference baseline |
 | `vectorized` | NumPy-vectorized single-threaded — fast CPU path |
-| `parallel` | Multi-thread row decomposition via `ThreadPoolExecutor` |
+| `parallel` | Multiprocessing with shared memory — bypasses GIL |
 | `gpu` | OpenCL kernel (byte-per-cell) via PyOpenCL |
 
 ---
@@ -16,6 +16,8 @@ Python implementation of Conway's Game of Life with four execution backends:
 - Python 3.11+
 - NumPy
 - PyOpenCL
+- MatPlotLib
+- OpenCL
 
 ```bash
 pip install -r requirements.txt
@@ -44,6 +46,7 @@ python gol/cli.py [--mode MODE] <steps> [pattern] [options]
 | `-v [MS]`, `--visual [MS]` | Live terminal visualisation; optional delay in ms (default 1000 ms, `0` = no delay) |
 | `-c CHAR`, `--cell-char CHAR` | Character for live cells (default `#`) |
 | `-b`, `--benchmark` | Run all modes and write a CSV results file |
+| `-r N`, `--repeats N` | Number of repeats per mode in benchmark (default 1) |
 | `-o FILE`, `--output FILE` | CSV output path for `--benchmark` (default `benchmark.csv`) |
 
 ### Examples
@@ -68,18 +71,18 @@ pattern: `pp8primecalculator` (~2.5 M cells), **1 000 steps**.
 
 | Method | ExecutionTime (ms) | Avg ms/step | LiveCells | LiveCell % | Threads |
 |---------------------------|------------------:|------------:|----------:|-----------:|--------:|
-| Pure Python (Sparse) | 77 687.9 | 77.69 | 12 032 | 0.476 % | 1 |
-| NumPy (Vectorized) | 4 236.9 | 4.24 | 12 032 | 0.476 % | 1 |
-| Parallel (Multithreading) | 2 337.0 | 2.34 | 12 032 | 0.476 % | 16 |
-| GPU (OpenCL) | 313.5 | 0.31 | 12 032 | 0.476 % | — |
+| Pure Python (Sparse) | 74 843.3 | 74.84 | 12 032 | 0.476 % | 1 |
+| NumPy (Vectorized) | 4 199.5 | 4.20 | 12 032 | 0.476 % | 1 |
+| Parallel (Multiprocessing) | 1 840.5 | 1.84 | 12 032 | 0.476 % | 16 |
+| GPU (OpenCL) | 333.9 | 0.33 | 12 032 | 0.476 % | — |
 
 **Speedup over pure Python baseline:**
 
 | Method | Speedup |
 |---------------------------|--------:|
 | NumPy (Vectorized) | ~18x |
-| Parallel (Multithreading) | ~33x |
-| GPU (OpenCL) | ~248x |
+| Parallel (Multiprocessing) | ~41x |
+| GPU (OpenCL) | ~224x |
 
 ---
 
@@ -114,9 +117,11 @@ gol-py/
 │       ├── engine.py           # Base class with unified simulate loop
 │       ├── sequential.py       # Pure Python loops
 │       ├── vectorized.py       # NumPy vectorized
-│       ├── parallel.py         # ThreadPoolExecutor row decomposition
+│       ├── parallel.py         # Multiprocessing + shared_memory
 │       └── gpu.py              # PyOpenCL backend
 ├── patterns/                   # Bundled RLE pattern files
 ├── benchmark.csv               # Latest benchmark results
+├── generate_graphs.py          # Benchmark graph generator (matplotlib)
+├── report/                     # LaTeX report with compiled PDF
 └── requirements.txt
 ```

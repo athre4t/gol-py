@@ -1,0 +1,13 @@
+Method,PatternName,ExecutionTime(ms),LiveCells,DeadCells,LiveCellPercentage,Threads,Steps
+Pure Python (Sparse),diehard2500,1876.7233,304,9696,3.04,0,1000
+NumPy (Vectorized),diehard2500,30.5933,304,9696,3.04,0,1000
+Parallel (Multiprocessing),diehard2500,396.2667,304,9696,3.04,16,1000
+GPU (OpenCL),diehard2500,31.2733,304,9696,3.04,0,1000
+Pure Python (Sparse),rpentominoequivalents,5493.93,867,83021,1.0335,0,1000
+NumPy (Vectorized),rpentominoequivalents,91.6633,867,83021,1.0335,0,1000
+Parallel (Multiprocessing),rpentominoequivalents,400.7067,867,83021,1.0335,16,1000
+GPU (OpenCL),rpentominoequivalents,48.7567,867,83021,1.0335,0,1000
+Pure Python (Sparse),pp8primecalculator,74843.3,12032,2514352,0.4763,0,1000
+NumPy (Vectorized),pp8primecalculator,4199.48,12032,2514352,0.4763,0,1000
+Parallel (Multiprocessing),pp8primecalculator,1840.4733,12032,2514352,0.4763,16,1000
+GPU (OpenCL),pp8primecalculator,333.9167,12032,2514352,0.4763,0,1000

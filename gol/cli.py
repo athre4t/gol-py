@@ -52,6 +52,8 @@ def main(argv=None):
     parser.add_argument('--cell-char', '-c', default='#', help='character to display for live cells (default "#")')
     parser.add_argument('--benchmark', '-b', action='store_true',
                         help='run all modes and write results to a CSV file')
+    parser.add_argument('--repeats', '-r', type=int, default=1,
+                        help='number of repeats per mode in benchmark (default: 1)')
     parser.add_argument('--output', '-o', default='benchmark.csv',
                         help='CSV output path for --benchmark (default: benchmark.csv)')
     args = parser.parse_args(argv)
@@ -65,13 +67,24 @@ def main(argv=None):
 
     if args.benchmark:
         pattern_name = os.path.splitext(os.path.basename(pattern))[0]
-        print(f'Benchmark: pattern={pattern_name}, steps={args.steps}')
+        repeats = args.repeats
+        print(f'Benchmark: pattern={pattern_name}, steps={args.steps}, repeats={repeats}')
         rows = []
         for mode in MODES:
             print(f'  Running [{mode}]...')
-            row = _run_one(mode, pattern, args.steps)
-            if row:
-                rows.append(row)
+            times = []
+            last_row = None
+            for r_i in range(repeats):
+                row = _run_one(mode, pattern, args.steps)
+                if row is None:
+                    break
+                times.append(row['ExecutionTime(ms)'])
+                last_row = row
+                if repeats > 1:
+                    print(f'    run {r_i+1}/{repeats}: {times[-1]:.2f} ms')
+            if last_row:
+                last_row['ExecutionTime(ms)'] = round(sum(times) / len(times), 4)
+                rows.append(last_row)
 
         with open(args.output, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)

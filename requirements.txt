@@ -1,2 +1,4 @@
 numpy
 pyopencl
+matplotlib
+pandas

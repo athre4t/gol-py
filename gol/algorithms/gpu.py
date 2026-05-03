@@ -51,4 +51,9 @@ class GameOfLifeGpu(GameOfLifeEngine):
             self.src_buf.release()
         if self.dst_buf:
             self.dst_buf.release()
+        if self.queue:
+            self.queue.finish()
+        self.queue = None
+        self.program = None
+        self.knl_step = None
         self.ctx = None

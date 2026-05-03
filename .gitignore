@@ -18,15 +18,19 @@ build/
 .cache/
 *.pyc
 
-# Benchmark output
-benchmark.csv
-*.csv
-
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# LaTeX intermediates
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk
 
 # OS
 .DS_Store
